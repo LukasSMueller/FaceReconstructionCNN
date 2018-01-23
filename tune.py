@@ -7,5 +7,6 @@ cmd = base_cmd + ' -e ' + str(epochs)
 
 for lr in range(len(learning_rates)):
     cmd = cmd + ' -l ' + str(learning_rates[lr])
+    cmd = cdm + '--log ' + 'lr-' + str(learning_rates[lr])
     print(cmd)
     os.system(cmd)

@@ -3,7 +3,13 @@ import os, sys
 import argparse
 from PIL import Image
 
+# Suppress some level of logs
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
+
+from tensorflow import logging
+logging.set_verbosity(logging.FATAL)
 
 import time
 
@@ -34,15 +40,14 @@ parser.add_argument('--lambda_style', '-l_style', default=1e1, type=float)
 parser.add_argument('--epoch', '-e', default=150, type=int)
 parser.add_argument('--lr', '-l', default=1e-3, type=float)
 parser.add_argument('--checkpoint', '-c', default=0, type=int)
+parser.add_argument('--log', type=str,
+                    help='name of the log entries')
 args = parser.parse_args()
 
 data_dict = loadWeightsData('./vgg16.npy')
 batchsize = args.batchsize
 
 n_epoch = args.epoch
-#lambda_tv = args.lambda_tv
-#lambda_f = args.lambda_feat
-#lambda_s = args.lambda_style
 output = args.output
 
 #function to define the path where to store the values for the tensorboard
@@ -91,14 +96,17 @@ with tf.device(device_):
     # initial input features
     vgg_in = custom_Vgg16(inputs, data_dict=data_dict)
     feature_init = [vgg_in.conv1_2, vgg_in.conv2_2, vgg_in.conv3_3, vgg_in.conv4_3, vgg_in.conv5_3]
+    #feature_init = [vgg_in.conv1_2]
 
     # content target feature
     vgg_c = custom_Vgg16(target, data_dict=data_dict)
     feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
+    #feature_ = [vgg_c.conv1_2]
 
     # feature after transformation
     vgg = custom_Vgg16(outputs, data_dict=data_dict)
     feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
+    #feature = [vgg.conv1_2]
 
     # compute initial loss of input data
     loss_i = tf.zeros(batchsize, tf.float32)
@@ -142,10 +150,15 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
     if args.input:
         saver.restore(sess, args.input + '.ckpt')
         print ('restoring model ', args.input)
-    #learning_rate = learning_rates[k]
-    hparam = make_hparam_string(args.lr)
+    # Set log dir to input or current date and time if no input specified
+    #hparam = make_hparam_string(args.lr)
+    if args.log:
+        log_title = args.log
+    else:
+        log_title = time.strftime("%d/%m/%Y") + time.strftime("%H-%M-%S")
+
     #print('Starting training with %s' % hparam)
-    writer = tf.summary.FileWriter(LOGDIR + hparam)
+    writer = tf.summary.FileWriter(LOGDIR + log_title)
     #writer.add_graph(sess.graph)
 
     ## Compute loss of obfuscated images

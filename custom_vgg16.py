@@ -1,9 +1,16 @@
 import os, sys, inspect
+
+# Suppress some level of logs
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 
 import numpy as np
 import time
 from tensorflow_vgg import vgg16
+
+from tensorflow import logging
+logging.set_verbosity(logging.FATAL)
 
 VGG_MEAN = [103.939, 116.779, 123.68]
 
@@ -21,7 +28,7 @@ class custom_Vgg16(vgg16.Vgg16):
     # values scaled [0, 1]
 
     def __init__(self, rgb, data_dict, train=False):
-        # It's a shared weights data and used in various 
+        # It's a shared weights data and used in various
         # member functions.
         self.data_dict = data_dict
 
@@ -65,6 +72,3 @@ class custom_Vgg16(vgg16.Vgg16):
 
     def debug(self):
         pass
-
-
-

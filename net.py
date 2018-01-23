@@ -1,5 +1,12 @@
+import os
+# Suppress some level of logs
+os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import matplotlib.pyplot as plt
+
+from tensorflow import logging
+logging.set_verbosity(logging.FATAL)
 
 
 def weight_variable(shape, name=None):
