@@ -2,12 +2,15 @@ import numpy as np
 import os, sys
 import argparse
 from PIL import Image
+
 import tensorflow as tf
+
 import time
 
 from net import *
 sys.path.append(os.path.join(os.path.dirname(sys.path[0]), "./"))
 from custom_vgg16 import *
+
 
 LOGDIR = "log_tb/"
 
@@ -29,7 +32,7 @@ parser.add_argument('--lambda_tv', '-l_tv', default=10e-4, type=float,
 parser.add_argument('--lambda_feat', '-l_feat', default=1e0, type=float)
 parser.add_argument('--lambda_style', '-l_style', default=1e1, type=float)
 parser.add_argument('--epoch', '-e', default=150, type=int)
-#parser.add_argument('--lr', '-l', default=1e-3, type=float)
+parser.add_argument('--lr', '-l', default=1e-3, type=float)
 parser.add_argument('--checkpoint', '-c', default=0, type=int)
 args = parser.parse_args()
 
@@ -85,11 +88,9 @@ with tf.device(device_):
     target = tf.placeholder(tf.float32, shape=[batchsize, 112, 112, 3])
     outputs = model(inputs)
 
-#    # style target feature
-#    # compute gram maxtrix of style target
-#    vgg_s = custom_Vgg16(target, data_dict=data_dict)
-#    feature_ = [vgg_s.conv1_2, vgg_s.conv2_2, vgg_s.conv3_3, vgg_s.conv4_3, vgg_s.conv5_3]
-#    gram_ = [gram_matrix(l) for l in feature_]
+    # initial input features
+    vgg_in = custom_Vgg16(inputs, data_dict=data_dict)
+    feature_init = [vgg_in.conv1_2, vgg_in.conv2_2, vgg_in.conv3_3, vgg_in.conv4_3, vgg_in.conv5_3]
 
     # content target feature
     vgg_c = custom_Vgg16(target, data_dict=data_dict)
@@ -99,70 +100,108 @@ with tf.device(device_):
     vgg = custom_Vgg16(outputs, data_dict=data_dict)
     feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
 
+    # compute initial loss of input data
+    loss_i = tf.zeros(batchsize, tf.float32)
+    for f_in, f_ in zip(feature_init, feature_):
+        loss_i += tf.reduce_mean(tf.subtract(f_in, f_) ** 2, [1, 2, 3])
+
+    megaloss = loss_i
+
     # compute feature loss
     loss_f = tf.zeros(batchsize, tf.float32)
     for f, f_ in zip(feature, feature_):
         loss_f += tf.reduce_mean(tf.subtract(f, f_) ** 2, [1, 2, 3])
 
     loss = loss_f
-    tf.summary.scalar("loss", loss[0])
+    #loss = tf.reduce_mean(loss_f)
+    #tf.summary.scalar("loss", loss[0])
+    #tf.summary.scalar("loss", tf.reduce_mean(loss))
 
-lr = tf. placeholder(tf.float32)
     # optimizer
 with tf.name_scope("train"):
-    train_step = tf.train.AdamOptimizer(lr).minimize(loss)
+    train_step = tf.train.AdamOptimizer(args.lr).minimize(loss)
 
 
     # merge all the summaries
-    summary = tf.summary.merge_all()
+    #summary = tf.summary.merge_all()
 
     # for calculating time
     s_time = time.time()
 
 var_list={}
-with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
 
+with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
     model_directory = './models/'
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
-
     # training
     tf.global_variables_initializer().run()
     writer = tf.summary.FileWriter("log_tb/")
     writer.add_graph(sess.graph)
-
     # Restore model if input is given
     if args.input:
         saver.restore(sess, args.input + '.ckpt')
         print ('restoring model ', args.input)
-    learning_rates = [1E-3, 1E-4, 1E-5]
-    #train with 3 different learning rates
-    for k in range(3):
-        learning_rate = learning_rates[k]
-        hparam = make_hparam_string(learning_rate)
-        print('Starting training with %s' % hparam)
-        writer = tf.summary.FileWriter(LOGDIR + hparam)
-        #writer.add_graph(sess.graph)
-        for epoch in range(n_epoch):
-            print ('epoch', epoch)
-            imgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
-            trgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
-            for i in range(n_iter):
-            #reading in all the images into the batch
-                for j in range(batchsize):
-                    p = imagepaths[i*batchsize + j]
-                    q = targetpaths[i*batchsize + j]
-                    imgs[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
-                    trgs[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
-                feed_dict = {inputs: imgs, target:trgs, lr: learning_rate}
-                loss_, _, s_= sess.run([loss, train_step,summary,], feed_dict=feed_dict)
-                writer.add_summary(s_, i)
-                print('(epoch {}) batch {}/{}... training loss is...{}'.format(epoch, i, n_iter-1, loss_[0]))
-        savepath = saver.save(sess, model_directory + args.output + '.ckpt')
-        print('Saved the model to ', savepath)
+    #learning_rate = learning_rates[k]
+    hparam = make_hparam_string(args.lr)
+    #print('Starting training with %s' % hparam)
+    writer = tf.summary.FileWriter(LOGDIR + hparam)
+    #writer.add_graph(sess.graph)
 
-        for var in tf.global_variables():
-            var_list[var.name] = var.eval()
+    ## Compute loss of obfuscated images
+    #imgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+    #trgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+    #initLoss = 0
+    #for i in range(n_iter):
+    #    for j in range(batchsize):
+    #        p = imagepaths[i*batchsize + j]
+    #        q = targetpaths[i*batchsize + j]
+    #        imgs[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+    #        trgs[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
+    #    feed_dict = {inputs: imgs, target:trgs}
+    #    inLoss = sess.run([megaloss], feed_dict=feed_dict)
+    #    print(inLoss)
+    #    initLoss += initLoss_
+    #initLoss = np.sum(initLoss) / n_data
+    #print("Initial average loss of obfuscated data: ", initialLoss)
+
+
+    for epoch in range(n_epoch):
+        print ('epoch', epoch)
+        imgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+        trgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+        loss_total = 0
+        iLoss_total = 0
+        s_total = 0
+        for i in range(n_iter):
+            #reading in all the images into the batch
+            for j in range(batchsize):
+                p = imagepaths[i*batchsize + j]
+                q = targetpaths[i*batchsize + j]
+                imgs[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+                trgs[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
+            feed_dict = {inputs: imgs, target:trgs}
+            #loss_, _, s_ = sess.run([loss, train_step, summary,], feed_dict=feed_dict)
+            loss_, _, initial_loss = sess.run([loss, train_step, megaloss], feed_dict=feed_dict)
+            #print(initial_loss)
+            #print(loss_)
+            #writer.add_summary(s_, i)
+            print('(epoch {}) batch {}/{}... training loss is...{}'.format(epoch, i, n_iter-1, loss_))
+            loss_total += loss_
+            iLoss_total += initial_loss
+            #s_total += s_
+        loss_total = (np.sum(loss_total) / n_data) / (np.sum(initial_loss)/n_data)
+        print('(Epoch {}) ... training loss is...{}'.format(epoch, loss_total))
+        summary = tf.Summary()
+        summary.value.add(tag="Loss", simple_value=loss_total)
+        writer.add_summary(summary, epoch)
+        #writer.add_summary(s_, i)
+
+    savepath = saver.save(sess, model_directory + args.output + '.ckpt')
+    print('Saved the model to ', savepath)
+
+    for var in tf.global_variables():
+        var_list[var.name] = var.eval()
 
 
 #Model = tf.Graph()
