@@ -46,6 +46,16 @@ def conv_layer(x, W, strides=[1, 1, 1, 1], p='SAME', name="conv_layer"):
         mean, var = tf.nn.moments(act, axes=[1, 2, 3], keep_dims=True)
         return tf.nn.batch_normalization(act, mean, var, 0, 1, 1e-5)
 
+#define a deconv layer for better visualization in tensorboard
+def deconv_layer(x, W, strides=[1, 2, 2, 1], p='SAME', name="deconv_layer"):
+    # set deconvolution layers.
+    with tf.name_scope(name):
+        assert isinstance(x, tf.Tensor)
+        deconv = deconv2d(x, W, strides=strides, name=name)
+        act = tf.nn.relu(deconv)
+        mean, var = tf.nn.moments(act, axes=[1, 2, 3], keep_dims=True)
+        return tf.nn.batch_normalization(act, mean, var, 0, 1, 1e-5)
+
 class ResidualBlock():
     def __init__(self, idx, ksize=3, train=False, data_dict=None):
         if train:
@@ -99,8 +109,10 @@ class FastStyleNet():
         h = self.r4(h, 4)
         h = self.r5(h, 5)
 
-        h = batch_norm(relu(deconv2d(h, self.d1, strides=[1, 2, 2, 1], name='t_deconv1')))
-        h = batch_norm(relu(deconv2d(h, self.d2, strides=[1, 2, 2, 1], name='t_deconv2')))
+#h = batch_norm(relu(deconv2d(h, self.d1, strides=[1, 2, 2, 1], name='t_deconv1')))
+#       h = batch_norm(relu(deconv2d(h, self.d2, strides=[1, 2, 2, 1], name='t_deconv2')))
+        h = deconv_layer(h, self.d1)
+        h = deconv_layer(h, self.d2)
         y = deconv2d(h, self.d3, name='t_deconv3')
         y = tf.multiply((tf.tanh(y) + 1), tf.constant(127.5, tf.float32, shape=y.get_shape()), name='output')
         tf.summary.image('output', y,3)

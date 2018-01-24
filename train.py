@@ -17,7 +17,7 @@ from net import *
 sys.path.append(os.path.join(os.path.dirname(sys.path[0]), "./"))
 from custom_vgg16 import *
 
-#folder to save tensorboard data
+
 LOGDIR = "log_tb/"
 
 parser = argparse.ArgumentParser(description='Real-time style transfer')
@@ -94,16 +94,19 @@ with tf.device(device_):
     outputs = model(inputs)
 
     # initial input features
+with tf.name_scope("network_loss_part_1"):
     vgg_in = custom_Vgg16(inputs, data_dict=data_dict)
     feature_init = [vgg_in.conv1_2, vgg_in.conv2_2, vgg_in.conv3_3, vgg_in.conv4_3, vgg_in.conv5_3]
     #feature_init = [vgg_in.conv1_2]
 
     # content target feature
+with tf.name_scope("network_loss_part_2"):
     vgg_c = custom_Vgg16(target, data_dict=data_dict)
     feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
     #feature_ = [vgg_c.conv1_2]
 
     # feature after transformation
+with tf.name_scope("network_loss_part_3"):
     vgg = custom_Vgg16(outputs, data_dict=data_dict)
     feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
     #feature = [vgg.conv1_2]
@@ -183,6 +186,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         print ('epoch', epoch)
         imgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
         trgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+        imgs_val = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
+        trgs_val = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
         loss_total = 0
         iLoss_total = 0
         s_total = 0
@@ -203,12 +208,24 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
             loss_total += loss_
             iLoss_total += initial_loss
             #s_total += s_
-        loss_total = (np.sum(loss_total) / n_data) / (np.sum(initial_loss)/n_data)
+        loss_total = (np.sum(loss_total) / n_data) / (np.sum(iLoss_total)/n_data)
         print('(Epoch {}) ... training loss is...{}'.format(epoch, loss_total))
         summary = tf.Summary()
-        summary.value.add(tag="Loss", simple_value=loss_total)
+        summary.value.add(tag="Loss_Training", simple_value=loss_total)
         writer.add_summary(summary, epoch)
-        #writer.add_summary(s_, i)
+        #check validation loss at end of each epoch (using one batch of validation images)
+        for j in range(batchsize):
+            p = imagepaths[j]
+            q = targetpaths[j]
+            imgs_val[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+            trgs_val[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
+        feed_dict = {inputs: imgs_val, target:trgs_val}
+        loss_val, _, initial_loss_val = sess.run([loss, train_step, megaloss], feed_dict=feed_dict)
+        loss_val = np.sum(loss_val) / np.sum(initial_loss_val)
+        print('(Epoch {}) ... validation loss is...{}'.format(epoch, loss_val))
+        summary = tf.Summary()
+        summary.value.add(tag="Loss_Validation", simple_value=loss_val)
+        writer.add_summary(summary, epoch)
 
     savepath = saver.save(sess, model_directory + args.output + '.ckpt')
     print('Saved the model to ', savepath)
