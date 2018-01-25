@@ -1,7 +1,7 @@
 import os, sys
 
 learning_rates = [1e-5]
-epochs = 5
+epochs = 1
 base_cmd = 'python train.py -d datasets/test/blurred_4 -t datasets/test/originals -b 2'
 cmd = base_cmd + ' -e ' + str(epochs)
 

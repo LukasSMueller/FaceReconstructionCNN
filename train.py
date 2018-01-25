@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import os, sys
 import argparse
 from PIL import Image
@@ -50,9 +51,6 @@ batchsize = args.batchsize
 n_epoch = args.epoch
 output = args.output
 
-#function to define the path where to store the values for the tensorboard
-def make_hparam_string(learning_rate):
-    return "lr_%.0E" % (learning_rate)
 
 fpath_inp = os.listdir(args.dataset)
 fpath_trg = os.listdir(args.targetset)
@@ -68,13 +66,16 @@ for fn, fn_ in zip(fpath_inp, fpath_trg):
     if ext_ == '.jpg' or ext_ == '.png':
         targetpath = os.path.join(args.targetset,fn_)
         targetpaths.append(targetpath)
-n_data = len(imagepaths)
-print ('num traning images:', n_data)
-n_iter = int(n_data / batchsize)
+#split into TRAINING{80%} [train (80%) &validation (20%)] and TEST DATA{20%}
+#i.e. total data 10: 6 training, 2 validation, 2 test
+n_train_data = int(len(imagepaths)*0.64)
+#n_test_data = int(len(imagepaths)*)
+print(n_train_data)
+#n_data = len(imagepaths)
+print ('num training images:', n_train_data)
+n_iter = int(n_train_data / batchsize)
 print (n_iter, 'iterations,', n_epoch, 'epochs')
 
-# style_ = np.asarray(Image.open(args.style_image).convert('RGB').resize((112,112)), dtype=np.float32)
-# styles_ = [style_ for x in range(batchsize)]
 
 if args.gpu > -1:
     device_ = '/gpu:{}'.format(args.gpu)
@@ -92,24 +93,20 @@ with tf.device(device_):
     #tf.summary.image('input' , inputs, 3)
     target = tf.placeholder(tf.float32, shape=[batchsize, 112, 112, 3])
     outputs = model(inputs)
-
+with tf.name_scope("loss_network"):
     # initial input features
-with tf.name_scope("network_loss_part_1"):
-    vgg_in = custom_Vgg16(inputs, data_dict=data_dict)
-    feature_init = [vgg_in.conv1_2, vgg_in.conv2_2, vgg_in.conv3_3, vgg_in.conv4_3, vgg_in.conv5_3]
-    #feature_init = [vgg_in.conv1_2]
-
+    with tf.name_scope("vgg16_on_input"):
+        vgg_in = custom_Vgg16(inputs, data_dict=data_dict)
+        feature_init = [vgg_in.conv1_2, vgg_in.conv2_2, vgg_in.conv3_3, vgg_in.conv4_3, vgg_in.conv5_3]
     # content target feature
-with tf.name_scope("network_loss_part_2"):
-    vgg_c = custom_Vgg16(target, data_dict=data_dict)
-    feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
-    #feature_ = [vgg_c.conv1_2]
-
+    with tf.name_scope("vgg16_on_originals"):
+        vgg_c = custom_Vgg16(target, data_dict=data_dict)
+        feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
     # feature after transformation
-with tf.name_scope("network_loss_part_3"):
-    vgg = custom_Vgg16(outputs, data_dict=data_dict)
-    feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
-    #feature = [vgg.conv1_2]
+    with tf.name_scope("vgg16_on_output"):
+        vgg = custom_Vgg16(outputs, data_dict=data_dict)
+        feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
+    
 
     # compute initial loss of input data
     loss_i = tf.zeros(batchsize, tf.float32)
@@ -154,15 +151,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         saver.restore(sess, args.input + '.ckpt')
         print ('restoring model ', args.input)
     # Set log dir to input or current date and time if no input specified
-    #hparam = make_hparam_string(args.lr)
     if args.log:
         log_title = args.log
     else:
         log_title = time.strftime("%d/%m/%Y") + time.strftime("%H-%M-%S")
 
-    #print('Starting training with %s' % hparam)
+
     writer = tf.summary.FileWriter(LOGDIR + log_title)
-    #writer.add_graph(sess.graph)
 
     ## Compute loss of obfuscated images
     #imgs = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
@@ -199,33 +194,39 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
                 imgs[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
                 trgs[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
             feed_dict = {inputs: imgs, target:trgs}
-            #loss_, _, s_ = sess.run([loss, train_step, summary,], feed_dict=feed_dict)
             loss_, _, initial_loss = sess.run([loss, train_step, megaloss], feed_dict=feed_dict)
-            #print(initial_loss)
-            #print(loss_)
-            #writer.add_summary(s_, i)
             print('(epoch {}) batch {}/{}... training loss is...{}'.format(epoch, i, n_iter-1, loss_))
             loss_total += loss_
             iLoss_total += initial_loss
-            #s_total += s_
-        loss_total = (np.sum(loss_total) / n_data) / (np.sum(iLoss_total)/n_data)
+        loss_total = np.sum(loss_total) / np.sum(iLoss_total)
         print('(Epoch {}) ... training loss is...{}'.format(epoch, loss_total))
         summary = tf.Summary()
         summary.value.add(tag="Loss_Training", simple_value=loss_total)
         writer.add_summary(summary, epoch)
         #check validation loss at end of each epoch (using one batch of validation images)
+        #TO DO: change the randomized choice of images in validation set
+        r = random.randint(0,2)
+        #print(r)
         for j in range(batchsize):
-            p = imagepaths[j]
-            q = targetpaths[j]
+            p = imagepaths[n_train_data+r+j]
+            q = targetpaths[n_train_data+r+j]
+            #print(p,q)
             imgs_val[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
             trgs_val[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
         feed_dict = {inputs: imgs_val, target:trgs_val}
-        loss_val, _, initial_loss_val = sess.run([loss, train_step, megaloss], feed_dict=feed_dict)
+        loss_val, initial_loss_val = sess.run([loss, megaloss], feed_dict=feed_dict)
         loss_val = np.sum(loss_val) / np.sum(initial_loss_val)
         print('(Epoch {}) ... validation loss is...{}'.format(epoch, loss_val))
         summary = tf.Summary()
         summary.value.add(tag="Loss_Validation", simple_value=loss_val)
         writer.add_summary(summary, epoch)
+    #visualize one random output // NOT WORKING
+    rand_index = random.randint(0,n_train_data)
+    p = imagepaths[rand_index]
+    test_image = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+    test_image =tf. convert_to_tensor(test_image)
+    #output = model(test_image) MAKING PROBLEMS
+    #tf.summary.image('Output' , output, 3)
 
     savepath = saver.save(sess, model_directory + args.output + '.ckpt')
     print('Saved the model to ', savepath)
