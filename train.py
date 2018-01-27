@@ -57,11 +57,13 @@ fpath_inp = os.listdir(args.dataset)
 fpath_trg = os.listdir(args.targetset)
 # Size of total dataset and train, validation and test sets
 n_data = int(len(fpath_inp))
-n_data = 10
 n_train = int(np.floor(n_data*0.64))
 n_val = int(np.ceil(n_data*0.16))
 n_test = int(n_data*0.2)
-print(n_train, n_val+n_train)
+
+# Handle exceptions
+if batchsize > n_val:
+    raise IOError('Entered batchsize is bigger than the validation set, please reduce batchsize')
 
 #print(n_data)
 indices = np.arange(n_data)
@@ -196,26 +198,28 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         summary = tf.Summary()
         summary.value.add(tag="Loss_Training", simple_value=loss_total)
         writer.add_summary(summary, epoch)
-        #check validation loss at end of each epoch (using one batch of validation images)
-        for j in range(n_val):
-            p = valset[j]
-            q = valset_[j]
+        # VALIDATION
+        ind = random.sample(range(n_val), batchsize)
+        for j in range(batchsize):
+            #print(j)
+            p = valset[ind[j]]
+            q = valset_[ind[j]]
             imgs_val[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
             trgs_val[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
         feed_dict = {inputs: imgs_val, target:trgs_val}
-        loss_val, initial_loss_val = sess.run([loss, megaloss], feed_dict=feed_dict)
-        loss_val = np.sum(loss_val) / np.sum(initial_loss_val)
+        loss_val_, initial_loss_val = sess.run([loss, megaloss], feed_dict=feed_dict)
+        loss_val = np.sum(loss_val_) / np.sum(initial_loss_val)
         print('(Epoch {}) ... validation loss is...{}'.format(epoch, loss_val))
         summary = tf.Summary()
         summary.value.add(tag="Loss_Validation", simple_value=loss_val)
         writer.add_summary(summary, epoch)
     #visualize one random output // NOT WORKING
-    rand_index = random.randint(0,n_train_data)
-    p = imagepaths[rand_index]
-    test_image = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
-    test_image =tf. convert_to_tensor(test_image)
-    output = model(test_image) #MAKING PROBLEMS
-    tf.summary.image('Output' , output, 3)
+    #rand_index = random.randint(0,n_train_data)
+    #p = imagepaths[rand_index]
+    #test_image = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+    #test_image =tf. convert_to_tensor(test_image)
+    #output = model(test_image) #MAKING PROBLEMS
+    #tf.summary.image('Output' , output, 3)
 
     savepath = saver.save(sess, model_directory + args.output + '.ckpt')
     print('Saved the model to ', savepath)
