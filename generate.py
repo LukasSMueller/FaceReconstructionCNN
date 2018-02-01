@@ -17,7 +17,6 @@ extensionsToCheck = ['.jpg', '.png']
 
 # Check if output directory already exists
 out_path = './' + args.out
-print(out_path)
 if not os.path.exists(out_path):
     os.makedirs(out_path)
 
@@ -29,11 +28,9 @@ if ext == '.jpg' or ext == '.png':
     n_imgs = 1
     cut = base.rfind('/')
     fname = base[cut+1:]
-    print(fname)
 else:
     fpath_inp = os.listdir(args.input)
     input_size = fpath_inp
-    print(len(fpath_inp))
     #inputpaths = []
     inputpaths = []
     fname = []
@@ -44,7 +41,6 @@ else:
             inputpaths.append(imagepath)
             fname.append(base)
     n_imgs = len(inputpaths)
-    print(n_imgs)
     img = np.zeros((n_imgs, 112, 112, 3), dtype=np.float32)
     for i in range(n_imgs):
         img[i] = np.asarray(Image.open(inputpaths[i]).convert('RGB').resize((112, 112)), np.float32)
@@ -78,3 +74,4 @@ else:
     for i in range(n_imgs):
         im = Image.fromarray(np.uint8(out[i]))
         im.save(out_path + '/' + fname[i] + '_rec.jpg')
+print('Saved reconstructed images to {}'.format(out_path))
