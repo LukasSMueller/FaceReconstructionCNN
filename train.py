@@ -191,8 +191,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
             feed_dict = {inputs: imgs, target:trgs}
             loss_, _, initial_loss = sess.run([loss, train_step, megaloss], feed_dict=feed_dict)
             #print TRAINING LOSS every i-th iteration
-            if(i%2==0) and (i!=0):
+            if(i%10==0) and (i!=0):
                 print('(Epoch {}) batch {}/{}... training loss is...{}'.format(epoch, i, n_iter-1, loss_[0]/initial_loss[0]))
+                #summary = tf.Summary()
+                #summary.value.add(tag="Loss_Training", simple_value=loss_[0]/initial_loss[0])
+                #writer.add_summary(summary, epoch)
             loss_total += loss_
             iLoss_total += initial_loss
             if(i%(n_iter-1)==0) and  (i!=0):
@@ -210,10 +213,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
                 summary = tf.Summary()
                 summary.value.add(tag="Loss_Validation", simple_value=loss_val)
                 writer.add_summary(summary, epoch)
+                summary = tf.Summary()
+                summary.value.add(tag="Loss_Training", simple_value=loss_[0]/initial_loss[0])
+                writer.add_summary(summary, epoch)
         loss_total = np.sum(loss_total) / np.sum(iLoss_total)
         print('(Epoch {}) ... average training loss is...{}'.format(epoch, loss_total))
         summary = tf.Summary()
-        summary.value.add(tag="Loss_Training", simple_value=loss_total)
+        summary.value.add(tag="Avg_Loss_Training", simple_value=loss_total)
         writer.add_summary(summary, epoch)
 
     #visualize one random output // NOT WORKING
