@@ -57,19 +57,17 @@ fpath_inp = os.listdir(args.dataset)
 fpath_trg = os.listdir(args.targetset)
 # Size of total dataset and train, validation and test sets
 n_data = int(len(fpath_inp))
-n_train = int(np.floor(n_data*0.64))
-n_val = int(np.ceil(n_data*0.16))
-n_test = int(n_data*0.2)
+n_train = int(np.floor(n_data*0.8))
+n_val = n_data - n_train
+#n_val = int(np.ceil(n_data*0.16))
+#n_test = int(n_data*0.2)
 
 # Handle exceptions
 if batchsize > n_val:
     raise IOError('Entered batchsize is bigger than the validation set, please reduce batchsize')
 
-#print(n_data)
 indices = np.arange(n_data)
 np.random.shuffle(indices)
-#ind_train = indices[0:]
-#ind_test = indices[]
 iTrain, iVal, iTest = np.split(indices,[n_train, n_train+n_val])
 all_images = fpath_inp
 random.shuffle(fpath_inp)
@@ -91,8 +89,9 @@ trainset_, valset_, testset_ = np.split(targetpaths,[n_train, n_train+n_val])
 print ('Input images:', n_data)
 print ('Training images:', n_train)
 print ('Validation images:', n_val)
-print ('Test images:', n_test)
+#print ('Test images:', n_test)
 n_iter = int(n_train / batchsize)
+n_iter_val = int(n_val / batchsize)
 print (n_iter, 'iterations,', n_epoch, 'epochs')
 
 
@@ -125,7 +124,6 @@ with tf.name_scope("loss_network"):
     with tf.name_scope("vgg16_on_output"):
         vgg = custom_Vgg16(outputs, data_dict=data_dict)
         feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
-
 
     # compute initial loss of input data
     loss_i = tf.zeros(batchsize, tf.float32)
@@ -179,7 +177,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         trgs_val = np.zeros((batchsize, 112, 112, 3), dtype=np.float32)
         loss_total = 0
         iLoss_total = 0
-        s_total = 0
         # TRAINING
         for i in range(n_iter):
             #reading in all the images into the batch
@@ -198,29 +195,56 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
                 #writer.add_summary(summary, epoch)
             loss_total += loss_
             iLoss_total += initial_loss
-            if(i%(n_iter-1)==0) and  (i!=0):
-                # print VALIDATION LOSS at end of each epoch
-                ind = random.sample(range(n_val), batchsize)
-                for j in range(batchsize):
-                    p = valset[ind[j]]
-                    q = valset_[ind[j]]
-                    imgs_val[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
-                    trgs_val[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
-                feed_dict = {inputs: imgs_val, target:trgs_val}
-                loss_val_, initial_loss_val = sess.run([loss, megaloss], feed_dict=feed_dict)
-                loss_val = np.sum(loss_val_) / np.sum(initial_loss_val)
-                print('(Epoch {}) ... validation loss is...{}'.format(epoch, loss_val))
-                summary = tf.Summary()
-                summary.value.add(tag="Loss_Validation", simple_value=loss_val)
-                writer.add_summary(summary, epoch)
-                summary = tf.Summary()
-                summary.value.add(tag="Loss_Training", simple_value=loss_[0]/initial_loss[0])
-                writer.add_summary(summary, epoch)
         loss_total = np.sum(loss_total) / np.sum(iLoss_total)
-        print('(Epoch {}) ... average training loss is...{}'.format(epoch, loss_total))
+        # Log in training loss
+        #print('(Epoch {}) ... average training loss is...{}'.format(epoch, loss_total))
         summary = tf.Summary()
-        summary.value.add(tag="Avg_Loss_Training", simple_value=loss_total)
+        summary.value.add(tag="in_training_loss", simple_value=loss_total)
         writer.add_summary(summary, epoch)
+
+        # Compute TRAINING LOSS
+        loss_total = 0
+        iLoss_total = 0
+        for i in range(n_iter):
+            #reading in all the images into the batch
+            for j in range(batchsize):
+                p = trainset[i*batchsize + j]
+                q = trainset_[i*batchsize + j]
+                imgs[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+                trgs[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
+            feed_dict = {inputs: imgs, target:trgs}
+            loss_, initial_loss = sess.run([loss, megaloss], feed_dict=feed_dict)
+            loss_total += loss_
+            iLoss_total += initial_loss
+        trainLoss = np.sum(loss_total) / np.sum(iLoss_total)
+        # Log training loss
+        summary = tf.Summary()
+        summary.value.add(tag="Loss_Training", simple_value=trainLoss)
+        writer.add_summary(summary, epoch)
+
+        # Compute VALIDATION LOSS
+        vLoss_total = 0
+        ivLoss_total = 0
+        for i in range(n_iter_val):
+            for j in range(batchsize):
+                p = valset[i*batchsize + j]
+                q = valset_[i*batchsize + j]
+                imgs_val[j] = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
+                trgs_val[j] = np.asarray(Image.open(q).convert('RGB').resize((112, 112)), np.float32)
+            feed_dict = {inputs: imgs_val, target:trgs_val}
+            loss_val_, initial_loss_val = sess.run([loss, megaloss], feed_dict=feed_dict)
+            vLoss_total += loss_val_
+            ivLoss_total += initial_loss_val
+        valLoss = np.sum(vLoss_total) / np.sum(ivLoss_total)
+        # Log validation loss
+        summary = tf.Summary()
+        summary.value.add(tag="Loss_Validation", simple_value=valLoss)
+        writer.add_summary(summary, epoch)
+
+        print('(Epoch {}) ... training loss is {} ... validation loss is...{}'.format(epoch, trainLoss, valLoss))
+        if (epoch%10 == 0) and (epoch != 0):
+            savepath = saver.save(sess, model_directory + args.output + '.ckpt')
+            print('Saved the model to ', savepath)
 
     #visualize one random output // NOT WORKING
     #rand_index = random.randint(0,n_train_data)
