@@ -2,6 +2,7 @@ import numpy as np
 import random
 import os, sys
 import argparse
+import csv
 from PIL import Image
 
 # Suppress some level of logs
@@ -168,6 +169,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
 
 
     writer = tf.summary.FileWriter(LOGDIR + log_title)
+    loss_train = []
+    loss_val = []
 
     for epoch in range(n_epoch):
         print ('epoch', epoch)
@@ -221,6 +224,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         summary = tf.Summary()
         summary.value.add(tag="Loss_Training", simple_value=trainLoss)
         writer.add_summary(summary, epoch)
+        loss_train.append(trainLoss)
 
         # Compute VALIDATION LOSS
         vLoss_total = 0
@@ -240,22 +244,25 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_plac
         summary = tf.Summary()
         summary.value.add(tag="Loss_Validation", simple_value=valLoss)
         writer.add_summary(summary, epoch)
+        loss_val.append(valLoss)
 
         print('(Epoch {}) ... training loss is {} ... validation loss is...{}'.format(epoch, trainLoss, valLoss))
         if (epoch%10 == 0) and (epoch != 0):
             savepath = saver.save(sess, model_directory + args.output + '.ckpt')
             print('Saved the model to ', savepath)
 
-    #visualize one random output // NOT WORKING
-    #rand_index = random.randint(0,n_train_data)
-    #p = imagepaths[rand_index]
-    #test_image = np.asarray(Image.open(p).convert('RGB').resize((112, 112)), np.float32)
-    #test_image =tf. convert_to_tensor(test_image)
-    #output = model(test_image) #MAKING PROBLEMS
-    #tf.summary.image('Output' , output, 3)
-
     savepath = saver.save(sess, model_directory + args.output + '.ckpt')
     print('Saved the model to ', savepath)
+
+    # Save loss log to csv file
+    loss_train = ['loss_train'] + loss_train
+    loss_val = ['loss_val'] + loss_val
+    losses = zip(loss_train, loss_val)
+    with open('./log_tb/' + log_title + '.csv', 'w') as csvfile:
+        wr = csv.writer(csvfile)#, quoting=csv.QUOTE_ALL)
+        #wr.writerow(loss_train)
+        for row in losses:
+            wr.writerow(row)
 
     for var in tf.global_variables():
         var_list[var.name] = var.eval()

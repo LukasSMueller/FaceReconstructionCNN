@@ -12,8 +12,20 @@ plt.rcParams['figure.figsize'] = (10.0, 8.0) # set default size of plots
 plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 dir_path = os.path.dirname(os.path.realpath(__file__))
-savepath = dir_path + '/datasets/'
-inputpath = dir_path + '/Datasets/raw'
+savepath = dir_path + '/datasets/test_images/'
+inputpath = dir_path + '/datasets/test_images/originals'
+#savepath = dir_path + '/datasets/test/'
+#inputpath = dir_path + '/datasets/test/originals'
+
+degrees = [2, 4, 6, 8, 10, 12]
+
+for deg in degrees:
+    out_path = savepath + 'blurred_' + str(deg)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    out_path = savepath + 'pixelated_' + str(deg)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
 
 # Run over all images in the specified foder
 #csv_file = open(dir_path + "/Datasets/FaceReconstructionData.csv", 'r+')
@@ -24,16 +36,17 @@ for path, dirs, files in os.walk(inputpath):
         img = np.array(Image.open(inputpath + '/' + fname))
         H, W, C = img.shape
         # Crop the image to 112x112
-        mrgn = int((H - 112) / 2)
-        img_crp = img[mrgn:(H-mrgn), mrgn:(W-mrgn), :]
-        # Blur the image
-        img_blur = gaussian_blur(img_crp, 4)
-        # Pixelate the image
-        img_pix = pixelate(img_crp, 4)
-        # Save the processed images
-        mi.imsave(savepath + 'originals/' + fname, img_crp)
-        mi.imsave(savepath + 'blurred/' + fname, img_blur)
-        mi.imsave(savepath + 'pixelated/' + fname, img_pix)
+        #mrgn = int((H - 112) / 2)
+        #img_crp = img[mrgn:(H-mrgn), mrgn:(W-mrgn), :]
+        for deg in degrees:
+            # Blur the image
+            img_blur = gaussian_blur(img, deg)
+            # Pixelate the image
+            img_pix = pixelate(img, deg)
+            # Save the processed images
+            #mi.imsave(savepath + 'originals/' + fname, img)
+            mi.imsave(savepath + 'blurred_' + str(deg) + '/' + fname, img_blur)
+            mi.imsave(savepath + 'pixelated_' + str(deg) + '/' + fname, img_pix)
 
 #num_samples = 10
 #
