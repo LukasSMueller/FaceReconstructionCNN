@@ -42,6 +42,7 @@ Thumbs.db
 /models/*
 /outcome/*
 /__pycache__/*
+/datasets/*
 
 # The pretrained VGG16 file (it's just too large)
 #################################################
