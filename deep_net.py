@@ -55,6 +55,11 @@ def max_pool_2x2(x):
 
 #define a parametric relu
 def parametric_relu(_x, alpha_):
+    #with tf.variable_scope("foo", reuse=tf.AUTO_REUSE):
+    #    alphas = tf.get_variable('alpha', _x.get_shape()[-1],
+    #                   initializer=tf.constant_initializer(0.0),
+    #                    dtype=tf.float32)
+
     pos = tf.nn.relu(_x)
     neg = alpha_ * (_x - abs(_x)) * 0.5
 
@@ -83,10 +88,10 @@ def deconv_layer(x, W, alphas, strides=[1, 2, 2, 1], p='SAME', name="deconv_laye
         return tf.nn.batch_normalization(act, mean, var, 0, 1, 1e-5)
 
 class ResidualBlock():
-    def __init__(self, idx, ksize=3, train=False, data_dict=None):
+    def __init__(self, idx, ksize=3, filters=128, train=False, data_dict=None):
         if train:
-            self.W1 = weight_variable([ksize, ksize, 128, 128], name='R'+str(idx)+'_conv1_w')
-            self.W2 = weight_variable([ksize, ksize, 128, 128], name='R'+str(idx)+'_conv2_w')
+            self.W1 = weight_variable([ksize, ksize, filters, filters], name='R'+str(idx)+'_conv1_w')
+            self.W2 = weight_variable([ksize, ksize, filters, filters], name='R'+str(idx)+'_conv2_w')
         else:
             self.W1 = tf.constant(data_dict['R'+str(idx)+'_conv1_w:0'])
             self.W2 = tf.constant(data_dict['R'+str(idx)+'_conv2_w:0'])
@@ -122,6 +127,16 @@ class FastStyleNet():
             self.r3 = ResidualBlock(3, train=train)
             self.r4 = ResidualBlock(4, train=train)
             self.r5 = ResidualBlock(5, train=train)
+            self.r1_1 = ResidualBlock(6, train=train, data_dict=data_dict, filters=64)
+            self.r2_1 = ResidualBlock(7, train=train, data_dict=data_dict, filters=64)
+            self.r3_1 = ResidualBlock(8, train=train, data_dict=data_dict, filters=64)
+            self.r4_1 = ResidualBlock(9, train=train, data_dict=data_dict, filters=64)
+            self.r5_1 = ResidualBlock(10, train=train, data_dict=data_dict, filters=64)
+            self.r1_2 = ResidualBlock(11, train=train, data_dict=data_dict, filters=32)
+            self.r2_2 = ResidualBlock(12, train=train, data_dict=data_dict, filters=32)
+            self.r3_2 = ResidualBlock(13, train=train, data_dict=data_dict, filters=32)
+            self.r4_2 = ResidualBlock(14, train=train, data_dict=data_dict, filters=32)
+            self.r5_2 = ResidualBlock(15, train=train, data_dict=data_dict, filters=32)
             self.d1 = weight_variable([4, 4, 64, 128], name='t_dconv1_w')
             self.d2 = weight_variable([4, 4, 32, 64], name='t_dconv2_w')
             self.d3 = weight_variable([9, 9, 3, 32], name='t_dconv3_w')
@@ -134,6 +149,16 @@ class FastStyleNet():
             self.r3 = ResidualBlock(3, train=train, data_dict=data_dict)
             self.r4 = ResidualBlock(4, train=train, data_dict=data_dict)
             self.r5 = ResidualBlock(5, train=train, data_dict=data_dict)
+            self.r1_1 = ResidualBlock(1, train=train, data_dict=data_dict)
+            self.r2_1 = ResidualBlock(2, train=train, data_dict=data_dict)
+            self.r3_1 = ResidualBlock(3, train=train, data_dict=data_dict)
+            self.r4_1 = ResidualBlock(4, train=train, data_dict=data_dict)
+            self.r5_1 = ResidualBlock(5, train=train, data_dict=data_dict)
+            self.r1_2 = ResidualBlock(1, train=train, data_dict=data_dict)
+            self.r2_2 = ResidualBlock(2, train=train, data_dict=data_dict)
+            self.r3_2 = ResidualBlock(3, train=train, data_dict=data_dict)
+            self.r4_2 = ResidualBlock(4, train=train, data_dict=data_dict)
+            self.r5_2 = ResidualBlock(5, train=train, data_dict=data_dict)
             self.d1 = tf.constant(data_dict['t_dconv1_w:0'])
             self.d2 = tf.constant(data_dict['t_dconv2_w:0'])
             self.d3 = tf.constant(data_dict['t_dconv3_w:0'])
@@ -151,7 +176,17 @@ class FastStyleNet():
 #h = batch_norm(relu(deconv2d(h, self.d1, strides=[1, 2, 2, 1], name='t_deconv1')))
 #       h = batch_norm(relu(deconv2d(h, self.d2, strides=[1, 2, 2, 1], name='t_deconv2')))
         h9 = deconv_layer(h8, self.d1, self.a2, mask=0)
+        h9 = self.r1_1(h9, 6)
+        h9 = self.r2_1(h9, 7)
+        h9 = self.r3_1(h9, 8)
+        h9 = self.r4_1(h9, 9)
+        h9 = self.r5_1(h9, 10)
         h10 = deconv_layer(h9, self.d2, self.a1, mask=0)
+        h10 = self.r1_2(h10, 11)
+        h10 = self.r2_2(h10, 12)
+        h10 = self.r3_2(h10, 13)
+        h10 = self.r4_2(h10, 14)
+        h10 = self.r5_2(h10, 15)
         y = deconv2d(h10, self.d3, name='t_deconv3', mask_type=0)
         y = tf.multiply((tf.tanh(y) + 1), tf.constant(127.5, tf.float32, shape=y.get_shape()), name='output')
         output = [y, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]

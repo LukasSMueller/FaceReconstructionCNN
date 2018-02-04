@@ -51,6 +51,9 @@ data_dict = loadWeightsData('./vgg16.npy')
 batchsize = args.batchsize
 n_epoch = args.epoch
 output = args.output
+weights = [1, 1, 1, 1, 1]
+#weights = [0.2, 0.4, 0.6, 0.8, 1]
+#weights = [1, 0.8, 0.6, 0.4, 0.2]
 
 
 # Read in all image paths from given dataset
@@ -123,20 +126,24 @@ with tf.name_scope("loss_network"):
         feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
     # feature after transformation
     with tf.name_scope("vgg16_on_output"):
-        vgg = custom_Vgg16(outputs, data_dict=data_dict)
+        vgg = custom_Vgg16(outputs[0], data_dict=data_dict)
         feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
 
     # compute initial loss of input data
     loss_i = tf.zeros(batchsize, tf.float32)
+    nf = 0
     for f_in, f_ in zip(feature_init, feature_):
-        loss_i += tf.reduce_mean(tf.subtract(f_in, f_) ** 2, [1, 2, 3])
+        loss_i += weights[nf] * tf.reduce_mean(tf.subtract(f_in, f_) ** 2, [1, 2, 3])
+        nf = nf + 1
 
     megaloss = loss_i
 
     # compute feature loss
     loss_f = tf.zeros(batchsize, tf.float32)
+    nf = 0
     for f, f_ in zip(feature, feature_):
-        loss_f += tf.reduce_mean(tf.subtract(f, f_) ** 2, [1, 2, 3])
+        loss_f += weights[nf] * tf.reduce_mean(tf.subtract(f, f_) ** 2, [1, 2, 3])
+        nf = nf + 1
 
     loss = loss_f
 

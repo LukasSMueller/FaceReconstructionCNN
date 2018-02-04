@@ -4,7 +4,6 @@ os.environ['TF_CPP_MIN_VLOG_LEVEL'] = '3'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import numpy as np
 
 from tensorflow import logging
 logging.set_verbosity(logging.FATAL)
@@ -27,58 +26,33 @@ def batch_norm(x):
 def relu(x):
     assert isinstance(x, tf.Tensor)
     return tf.nn.relu(x)
-def deconv2d(x, W, strides=[1, 1, 1, 1], p='SAME', name=None, mask_type=0):
+def deconv2d(x, W, strides=[1, 1, 1, 1], p='SAME', name=None):
     with tf.name_scope(name):
         assert isinstance(x, tf.Tensor)
-        kernel_h, kernel_w, c, kernel_n = W.get_shape().as_list()
+        _, _, c, _ = W.get_shape().as_list()
         b, h, w, _ = x.get_shape().as_list()
-
-        center_h = kernel_h // 2
-        center_w = kernel_w // 2
-
-        if mask_type != 0:
-            mask = np.ones(
-                (kernel_h, kernel_w, c, kernel_n), dtype=np.float32)
-
-            mask[center_h, center_w+1:, :, :] = 0.
-            mask[center_h+1:, :, :, :] = 0.
-
-            if mask_type == 1:
-                mask[center_h, center_w, :, :] = 0.
-
-            W *= tf.constant(mask, dtype=tf.float32)
-
     return tf.nn.conv2d_transpose(x, W, [b, strides[1]*h, strides[1]*w, c], strides=strides, padding=p, name=name)
 def max_pool_2x2(x):
     assert isinstance(x, tf.Tensor)
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-#define a parametric relu
-def parametric_relu(_x, alpha_):
-    pos = tf.nn.relu(_x)
-    neg = alpha_ * (_x - abs(_x)) * 0.5
-
-    return pos + neg
-
 #define a conv layer with a name for better visualization in tensorboard
-def conv_layer(x, W, alphas, strides=[1, 1, 1, 1], p='SAME', name="conv_layer"):
+def conv_layer(x, W, strides=[1, 1, 1, 1], p='SAME', name="conv_layer"):
     # set convolution layers.
     with tf.name_scope(name):
         assert isinstance(x, tf.Tensor)
         conv = tf.nn.conv2d(x, W, strides=strides, padding=p, name=name)
-        act = parametric_relu(conv, alphas)
-        #act = tf.nn.relu(conv)
+        act = tf.nn.relu(conv)
         mean, var = tf.nn.moments(act, axes=[1, 2, 3], keep_dims=True)
         return tf.nn.batch_normalization(act, mean, var, 0, 1, 1e-5)
 
 #define a deconv layer for better visualization in tensorboard
-def deconv_layer(x, W, alphas, strides=[1, 2, 2, 1], p='SAME', name="deconv_layer", mask=0):
+def deconv_layer(x, W, strides=[1, 2, 2, 1], p='SAME', name="deconv_layer"):
     # set deconvolution layers.
     with tf.name_scope(name):
         assert isinstance(x, tf.Tensor)
-        deconv = deconv2d(x, W, strides=strides, name=name, mask_type=mask)
-        #act = tf.nn.relu(deconv)
-        act = parametric_relu(deconv, alphas)
+        deconv = deconv2d(x, W, strides=strides, name=name)
+        act = tf.nn.relu(deconv)
         mean, var = tf.nn.moments(act, axes=[1, 2, 3], keep_dims=True)
         return tf.nn.batch_normalization(act, mean, var, 0, 1, 1e-5)
 
@@ -100,19 +74,6 @@ class ResidualBlock():
 class FastStyleNet():
     def __init__(self, train=True, data_dict=None):
         print('initialize transform network...')
-    #with tf.variable_scope("foo", reuse=tf.AUTO_REUSE):
-    #    alphas = tf.get_variable('alpha', _x.get_shape()[-1],
-    #                   initializer=tf.constant_initializer(0.0),
-    #                    dtype=tf.float32)
-        self.a1 = tf.Variable(tf.ones([1,112,112,32], name="alphas1"))
-        self.a1 = self.a1*0.1
-        self.a2 = tf.Variable(tf.ones([1,56,56,64], name="alphas2"))
-        self.a2 = self.a2*0.1
-        self.a3 = tf.Variable(tf.ones([1,28,28,128], name="alphas3"))
-        self.a3 = self.a3*0.1
-        self.a0 = tf.Variable(tf.ones([2,112,112,3], name="alphas3"))
-        self.a0 = self.a0*0.1
-
         if train:
             self.c1 = weight_variable([9, 9, 3, 32], name='t_conv1_w')
             self.c2 = weight_variable([4, 4, 32, 64], name='t_conv2_w')
@@ -138,22 +99,21 @@ class FastStyleNet():
             self.d2 = tf.constant(data_dict['t_dconv2_w:0'])
             self.d3 = tf.constant(data_dict['t_dconv3_w:0'])
     def __call__(self, h):
-        h1 = conv_layer(h, self.c1, self.a1)
-        h2 = conv_layer(h1, self.c2, self.a2, strides=[1, 2, 2, 1])
-        h3 = conv_layer(h2, self.c3, self.a3, strides=[1, 2, 2, 1])
+        h = conv_layer(h, self.c1)
+        h = conv_layer(h, self.c2, strides=[1, 2, 2, 1])
+        h = conv_layer(h, self.c3, strides=[1, 2, 2, 1])
 
-        h4 = self.r1(h3, 1)
-        h5 = self.r2(h4, 2)
-        h6 = self.r3(h5, 3)
-        h7 = self.r4(h6, 4)
-        h8 = self.r5(h7, 5)
+        h = self.r1(h, 1)
+        h = self.r2(h, 2)
+        h = self.r3(h, 3)
+        h = self.r4(h, 4)
+        h = self.r5(h, 5)
 
 #h = batch_norm(relu(deconv2d(h, self.d1, strides=[1, 2, 2, 1], name='t_deconv1')))
 #       h = batch_norm(relu(deconv2d(h, self.d2, strides=[1, 2, 2, 1], name='t_deconv2')))
-        h9 = deconv_layer(h8, self.d1, self.a2, mask=0)
-        h10 = deconv_layer(h9, self.d2, self.a1, mask=0)
-        y = deconv2d(h10, self.d3, name='t_deconv3', mask_type=0)
+        h = deconv_layer(h, self.d1)
+        h = deconv_layer(h, self.d2)
+        y = deconv2d(h, self.d3, name='t_deconv3')
         y = tf.multiply((tf.tanh(y) + 1), tf.constant(127.5, tf.float32, shape=y.get_shape()), name='output')
-        output = [y, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]
         tf.summary.image('output', y,3)
-        return output
+        return y
