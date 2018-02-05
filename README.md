@@ -25,7 +25,7 @@ from net_old import *
 
 The model can be trained with the following command:
 ```
-python train.py -d <path-to-obfuscations> -t <path-to-ground-truths> -b <batchsize> -o <output-model> -e <#-of-epochs> -l <learning-rate> -i <input-model>
+python train.py -d <path-to-obfuscations> -t <path-to-ground-truths> -b <batchsize> -o <output-model> -e <#-of-epochs> -l <learning-rate> -i <input-model> --log <name-of-log-entries>
 ```
 
 ## Generating reconstructions
