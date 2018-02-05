@@ -5,7 +5,7 @@ import tensorflow as tf
 from PIL import Image
 import time
 from tensorflow.python.platform import gfile
-from net import *
+from deep_net import *
 
 def getActivations(layer,stimuli):
     units = sess.run(layer, feed_dict={img: stimuli})
@@ -64,7 +64,7 @@ with tf.Session() as sess: #config=tf.ConfigProto(allow_soft_placement=True, log
     print("Model restored.")
     #getActivations('t_conv1_w:0',img)
     out = sess.run(output, feed_dict={image: img})
-    toplot = out[8]
+    toplot = out[5]
     print(toplot.shape)
     #print(toplot[0,:,:,0])
     #print(toplot[0,:,:,1])

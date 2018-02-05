@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(description='Real-time style transfer')
 parser.add_argument('--gpu', '-g', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
 parser.add_argument('--dataset', '-d', default='dataset/inputs', type=str,
-                    help='dataset directory path (according to the paper, use MSCOCO 80k images)')
+                    help='dataset directory path')
 parser.add_argument('--targetset', '-t', default='dataset/targets', type=str, required=True,
                     help='path to folder containing the target images')
 parser.add_argument('--batchsize', '-b', type=int, default=1,
@@ -38,8 +38,6 @@ parser.add_argument('--output', '-o', default='out', type=str,
                     help='output model file path without extension')
 parser.add_argument('--lambda_tv', '-l_tv', default=10e-4, type=float,
                     help='weight of total variation regularization according to the paper to be set between 10e-4 and 10e-6.')
-parser.add_argument('--lambda_feat', '-l_feat', default=1e0, type=float)
-parser.add_argument('--lambda_style', '-l_style', default=1e1, type=float)
 parser.add_argument('--epoch', '-e', default=150, type=int)
 parser.add_argument('--lr', '-l', default=1e-3, type=float)
 parser.add_argument('--checkpoint', '-c', default=0, type=int)
