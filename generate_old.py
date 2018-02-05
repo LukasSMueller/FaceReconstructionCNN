@@ -4,7 +4,7 @@ import tensorflow as tf
 from PIL import Image
 import time
 from tensorflow.python.platform import gfile
-from net import *
+from net_old import *
 
 parser = argparse.ArgumentParser(description='Real-time style transfer image generator')
 parser.add_argument('input')

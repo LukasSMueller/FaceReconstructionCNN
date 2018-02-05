@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(description='Real-time style transfer')
 parser.add_argument('--gpu', '-g', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
 parser.add_argument('--dataset', '-d', default='dataset/inputs', type=str,
-                    help='dataset directory path (according to the paper, use MSCOCO 80k images)')
+                    help='dataset directory path')
 parser.add_argument('--targetset', '-t', default='dataset/targets', type=str, required=True,
                     help='path to folder containing the target images')
 parser.add_argument('--batchsize', '-b', type=int, default=1,
@@ -38,8 +38,6 @@ parser.add_argument('--output', '-o', default='out', type=str,
                     help='output model file path without extension')
 parser.add_argument('--lambda_tv', '-l_tv', default=10e-4, type=float,
                     help='weight of total variation regularization according to the paper to be set between 10e-4 and 10e-6.')
-parser.add_argument('--lambda_feat', '-l_feat', default=1e0, type=float)
-parser.add_argument('--lambda_style', '-l_style', default=1e1, type=float)
 parser.add_argument('--epoch', '-e', default=150, type=int)
 parser.add_argument('--lr', '-l', default=1e-3, type=float)
 parser.add_argument('--checkpoint', '-c', default=0, type=int)
@@ -51,6 +49,9 @@ data_dict = loadWeightsData('./vgg16.npy')
 batchsize = args.batchsize
 n_epoch = args.epoch
 output = args.output
+weights = [1, 1, 1, 1, 1]
+#weights = [0.2, 0.4, 0.6, 0.8, 1]
+#weights = [1, 0.8, 0.6, 0.4, 0.2]
 
 
 # Read in all image paths from given dataset
@@ -123,20 +124,24 @@ with tf.name_scope("loss_network"):
         feature_ = [vgg_c.conv1_2, vgg_c.conv2_2, vgg_c.conv3_3, vgg_c.conv4_3, vgg_c.conv5_3]
     # feature after transformation
     with tf.name_scope("vgg16_on_output"):
-        vgg = custom_Vgg16(outputs, data_dict=data_dict)
+        vgg = custom_Vgg16(outputs[0], data_dict=data_dict)
         feature = [vgg.conv1_2, vgg.conv2_2, vgg.conv3_3, vgg.conv4_3, vgg.conv5_3]
 
     # compute initial loss of input data
     loss_i = tf.zeros(batchsize, tf.float32)
+    nf = 0
     for f_in, f_ in zip(feature_init, feature_):
-        loss_i += tf.reduce_mean(tf.subtract(f_in, f_) ** 2, [1, 2, 3])
+        loss_i += weights[nf] * tf.reduce_mean(tf.subtract(f_in, f_) ** 2, [1, 2, 3])
+        nf = nf + 1
 
     megaloss = loss_i
 
     # compute feature loss
     loss_f = tf.zeros(batchsize, tf.float32)
+    nf = 0
     for f, f_ in zip(feature, feature_):
-        loss_f += tf.reduce_mean(tf.subtract(f, f_) ** 2, [1, 2, 3])
+        loss_f += weights[nf] * tf.reduce_mean(tf.subtract(f, f_) ** 2, [1, 2, 3])
+        nf = nf + 1
 
     loss = loss_f
 

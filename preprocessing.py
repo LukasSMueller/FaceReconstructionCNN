@@ -12,8 +12,8 @@ plt.rcParams['figure.figsize'] = (10.0, 8.0) # set default size of plots
 plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 dir_path = os.path.dirname(os.path.realpath(__file__))
-savepath = dir_path + '/datasets/test_images/'
-inputpath = dir_path + '/datasets/test_images/originals'
+savepath = dir_path + '/datasets/complete/'
+inputpath = dir_path + '/datasets/complete/originals'
 #savepath = dir_path + '/datasets/test/'
 #inputpath = dir_path + '/datasets/test/originals'
 
