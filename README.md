@@ -9,12 +9,25 @@ For the loss computation the [implementation of a VGG16 model](https://github.co
 ## Neural Networks
 
 Three slightly different networks have been implemented in the files net.py, net_old.py and deep_net.py. To switch between these nets the files for training (train.py) and generating (generate.py) have to be adapted. Therefore the line:
-  from net import *
+```  
+from net import *
+```
 has to be changed to
-  from deep_net import *
+```
+from deep_net import *
+```
 or
-  from net_old import *
+```
+from net_old import *
+```
 
 ## Training the model
 
 The model can be trained with the following command:
+```
+python train.py -d <path-to-obfuscations> -t <path-to-ground-truths> -b <batchsize> -o <output-model> -e <#-of-epochs> -l <learning-rate> -i <input-model>
+```
+
+## Generating reconstructions
+```
+python generate.py <image/folder-of-images-to-reconstruct> -m <path/to/model(without-extension> -o <output-folder>
